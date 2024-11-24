@@ -2,87 +2,248 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\UserResource;
-use App\Entity\User;
-use Hash;
+use App\Http\Requests\UserCreateRequest;
+use App\Http\Requests\UserUpdateRequest;
+use App\Repository\IUserRepository;
 use Illuminate\Http\Request;
-use App\Http\Requests\StoreUserRequest;
-use App\Http\Requests\UpdateUserRequest;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Hash;
+use Exception;
 
 class UserController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+    private $userRepository;
+
+    public function __construct(IUserRepository $userRepository)
     {
-        $query = User::query();
-        $name = $request->name;
-        $email = $request->email;
-        $sortField = $request->input("sorted", "id");
-        $direction = $request->input("direction", "asc");
-        if ($name) {
-            $query->where("name", "like", "%" . $name . "%");
+        $this->userRepository = $userRepository;
+    }
+
+    /**
+     * Display a listing of users
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function index(Request $request): JsonResponse
+    {
+        try {
+            $perPage = $request->get('per_page', 10);
+            $users = $this->userRepository->paginate($perPage);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $users,
+                'message' => 'Users retrieved successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error retrieving users',
+                'error' => $e->getMessage()
+            ], 500);
         }
-        if ($email) {
-            $query->where("email", "like", "%" . $email . "%");
+    }
+
+    /**
+     * Store a newly created user
+     *
+     * @param UserCreateRequest $request
+     * @return JsonResponse
+     */
+    public function store(UserCreateRequest $request): JsonResponse
+    {
+        try {
+            $data = $request->validated();
+            $data['password'] = Hash::make($data['password']);
+
+            $user = $this->userRepository->create($data);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $user,
+                'message' => 'User created successfully'
+            ], 201);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error creating user',
+                'error' => $e->getMessage()
+            ], 500);
         }
-        $users = $query->orderBy($sortField, $direction)->paginate(10);
-        return inertia("Users/Index", ["users" => UserResource::collection($users), "nameQuery" => $name, "emailQuery" => $email, "sortField" => $sortField, "direction" => $direction,"success"=>session("success")]);
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Display the specified user
+     *
+     * @param int $id
+     * @return JsonResponse
      */
-    public function create()
+    public function show(int $id): JsonResponse
     {
-        return inertia("Users/Create");
+        try {
+            $user = $this->userRepository->find($id);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $user,
+                'message' => 'User retrieved successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User not found',
+                'error' => $e->getMessage()
+            ], 404);
+        }
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Update the specified user
+     *
+     * @param UserUpdateRequest $request
+     * @param int $id
+     * @return JsonResponse
      */
-    public function store(StoreUserRequest $request)
+    public function update(UserUpdateRequest $request, int $id): JsonResponse
     {
-        $data = $request->validated();
-        $data["password"] = Hash::make($data["password"]);
-        User::create($data);
-        return to_route("user.index")->with("success","User Created Successfully");
+        try {
+            $data = $request->validated();
+
+            if (isset($data['password'])) {
+                $data['password'] = Hash::make($data['password']);
+            }
+
+            $user = $this->userRepository->update($id, $data);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $user,
+                'message' => 'User updated successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error updating user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Display the specified resource.
+     * Remove the specified user
+     *
+     * @param int $id
+     * @return JsonResponse
      */
-    public function show(User $user)
+    public function destroy(int $id): JsonResponse
     {
-        //
+        try {
+            $this->userRepository->delete($id);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'User deleted successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error deleting user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Search users by email
+     *
+     * @param Request $request
+     * @return JsonResponse
      */
-    public function edit(User $user)
+    public function searchByEmail(Request $request): JsonResponse
     {
-        return inertia("Users/Edit",$user);
+        try {
+            $email = $request->get('email');
+            $user = $this->userRepository->findByEmail($email);
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not found'
+                ], 404);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $user,
+                'message' => 'User found successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error searching user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Update the specified resource in storage.
+     * Get current authenticated user
+     *
+     * @return JsonResponse
      */
-    public function update(UpdateUserRequest $request, User $user)
+    public function profile(): JsonResponse
     {
-        $data = $request->validated();
-        $user->update($data);
-        return to_route("user.index")->with("success", "User Updated Successfully");
+        try {
+            $user = auth()->user();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $user,
+                'message' => 'Profile retrieved successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error retrieving profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Update user profile
+     *
+     * @param Request $request
+     * @return JsonResponse
      */
-    public function destroy(User $user)
+    public function updateProfile(Request $request): JsonResponse
     {
-        $name = $user->name;
-        $user->delete();
-        return to_route("user.index")->with("success", "User \" $name \" Deleted Successfully");
+        try {
+            $user = auth()->user();
+            $data = $request->validate([
+                'name' => 'sometimes|string|max:255',
+                'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+                'password' => 'sometimes|string|min:8|confirmed',
+            ]);
+
+            if (isset($data['password'])) {
+                $data['password'] = Hash::make($data['password']);
+            }
+
+            $updatedUser = $this->userRepository->update($user->id, $data);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $updatedUser,
+                'message' => 'Profile updated successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error updating profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

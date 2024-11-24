@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Vite;
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\UserController;
+use App\Repository\IUserRepository;
+use App\Repository\UserRepository;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -12,7 +15,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->when(UserController::class)
+            ->needs(IUserRepository::class)
+            ->give(UserRepository::class);
+        $this->app->when(AuthController::class)
+            ->needs(IUserRepository::class)
+            ->give(UserRepository::class);
     }
 
     /**
@@ -20,6 +28,5 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Vite::prefetch(concurrency: 3);
     }
 }
