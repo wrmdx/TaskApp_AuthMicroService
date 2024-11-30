@@ -5,14 +5,14 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\JsonResponse;
-use App\Http\Controllers\Request;
 use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Repository\IUserRepository;
 use Exception;
 use Illuminate\Support\Facades\Auth;
-
+use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -174,6 +174,52 @@ class AuthController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to change password',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function checkToken(Request $request): JsonResponse
+    {
+        try {
+            $token = $request->input('token');
+
+            if (!$token) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Token is required'
+                ], 400);
+            }
+
+            // Find token
+            $accessToken = PersonalAccessToken::findToken($token);
+
+            if (!$accessToken) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid token'
+                ], 401);
+            }
+
+            // Get user from token
+            $user = $accessToken->tokenable;
+
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'email_verified_at' => $user->email_verified_at,
+                    'created_at' => $user->created_at,
+                    'updated_at' => $user->updated_at
+                ],
+                'message' => 'Token is valid'
+            ], 200);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Token validation failed',
                 'error' => $e->getMessage()
             ], 500);
         }

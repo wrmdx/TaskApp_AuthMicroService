@@ -1,6 +1,6 @@
 <?php
 
-use App\Entity\User;
+use App\Model\User;
 use Illuminate\Support\Facades\Hash;
 
 test('password can be updated', function () {

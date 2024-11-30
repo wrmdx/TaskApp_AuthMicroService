@@ -1,6 +1,6 @@
 <?php
 
-use App\Entity\User;
+use App\Model\User;
 
 test('login screen can be rendered', function () {
     $response = $this->get('/login');

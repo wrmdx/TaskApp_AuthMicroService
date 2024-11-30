@@ -2,7 +2,7 @@
 
 namespace App\Repository;
 
-use App\Entity\User;
+use App\Model\User;
 
 
 class UserRepository implements IUserRepository
